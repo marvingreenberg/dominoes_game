@@ -1,5 +1,10 @@
+#!/usr/bin/env python
+import argparse
+import os
 import xml.etree.ElementTree as ET
 import sys
+
+
 
 GROUP='g'
 CIRCLE='circle'
@@ -7,6 +12,8 @@ STYLE='style'
 LINE='line'
 RECT='rect'
 
+DWIDTH = 96
+DHEIGHT = 192
 ZERO = []
 ONE = [ (48,48) ]
 TWO = [ (78,16), (16,78) ]
@@ -38,6 +45,15 @@ def indent(elem, level=0):
             subelem.tail = i
 
     return elem
+SIZING= {
+  'enable-background':'new 0.0 0.0 30.0 60.0',
+  'height': '60.0mm',
+   'width': '30.0mm',
+   'x':'0.0mm',
+    'y': '0.0mm',
+    'version': '1.1',
+    'viewBox': 'new 0.0 0.0 96.0 192.0'
+}
 
 class DominoSVG(object):
     def __init__(self,topnum, bottomnum):
@@ -48,11 +64,11 @@ class DominoSVG(object):
 
     def init_svg(self):
         self.svg = ET.Element('svg',
-            viewBox='0 0 106 202',
+            attrib=SIZING,
             xmlns='http://www.w3.org/2000/svg')
         self.svg.text = '\n'
         ET.SubElement(self.svg,
-                      RECT, x='5', y='5', width='96', height='192',
+                      RECT, x='5', y='5', width=str(DWIDTH), height=str(DHEIGHT),
                       style=
                       'stroke: rgb(0, 0, 0); '
                       'fill: rgb(255, 255, 255); '
@@ -73,28 +89,32 @@ class DominoSVG(object):
                           style='stroke: rgb(0, 0, 0); fill: rbg(0,0,20)')
 
 def main():
-    html = False
-    if len(sys.argv) > 1:
-        if len(sys.argv) == 2 and '--html' == sys.argv[0]:
-            html = True
-        else:
-            print('Usage: {} [--html]'.format(sys.argv[0]))
-            sys.exit(1)
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--html', action='store_true')
+    ap.add_argument('--dir', action='store', default=None)
+    args = ap.parse_args()
 
     dominoes = [DominoSVG(i,j)
                 for i in range(7) for j in range(i,7) ]
-    if html:
-        mkhtml(dominoes)
+    if args.dir and not os.path.exists(args.dir):
+        os.makedirs(args.dir)
+    if args.html:
+        mkhtml(dominoes, outdir=args.dir)
     else:
-        mkfiles(dominoes)
+        mkfiles(dominoes, outdir=args.dir)
 
-def mkfiles(dominoes):
+def mkfiles(dominoes, outdir=None):
     for d in dominoes:
-        with open('{}_{}.svg'.format(d.topnum, d.bottomnum),'w') as f:
+        ofile = os.path.join(outdir if outdir else '.',
+                            '{}_{}.svg'.format(d.topnum, d.bottomnum))
+        with open(ofile,'w') as f:
             t = ET.ElementTree(element=indent(d.svg))
             t.write(f, encoding='utf-8', xml_declaration=True)
 
-def mkhtml(dominoes):
+def mkhtml(dominoes, outdir=None):
+    ofile = os.path.join(outdir if outdir else '.',
+                        'dominos.html')
+
     html = ET.Element('html', lang='en')
     body = ET.SubElement(html, 'body')
     for n in 7,6,5,4,3,2,1:
@@ -103,8 +123,11 @@ def mkhtml(dominoes):
         del dominoes[:n]
 
         li = ET.SubElement(ul, 'li', attrib={'class':'row'})
-        li.text = '\n'+ '\n'.join(d.svg for d in row)
+        li.extend([d.svg for d in row])
 
+    with open(ofile,'w') as f:
+        t = ET.ElementTree(element=indent(html))
+        t.write(f, encoding='utf-8', xml_declaration=True)
 
 if __name__ == '__main__':
     main()
